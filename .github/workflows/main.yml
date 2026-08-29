@@ -31,32 +31,27 @@ jobs:
 
       - name: Create RDP User with Secure Password
         run: |
-          Add-Type -AssemblyName System.Security
-          $charSet = @{
-              Upper   = [char[]](65..90)      # A-Z
-              Lower   = [char[]](97..122)     # a-z
-              Number  = [char[]](48..57)      # 0-9
-              Special = ([char[]](33..47) + [char[]](58..64) +
-                         [char[]](91..96) + [char[]](123..126)) # Special characters
-          }
-          $rawPassword = @()
-          $rawPassword += $charSet.Upper | Get-Random -Count 4
-          $rawPassword += $charSet.Lower | Get-Random -Count 4
-          $rawPassword += $charSet.Number | Get-Random -Count 4
-          $rawPassword += $charSet.Special | Get-Random -Count 4
-          $password = -join ($rawPassword | Sort-Object { Get-Random })
+          $username = "${{ secrets.RDP_USERNAME }}"
+          $password = "${{ secrets.RDP_PASSWORD }}"
           $securePass = ConvertTo-SecureString $password -AsPlainText -Force
-          New-LocalUser -Name "RDP" -Password $securePass -AccountNeverExpires
-          Add-LocalGroupMember -Group "Administrators" -Member "RDP"
-          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "RDP"
           
-          echo "RDP_CREDS=User: RDP | Password: $password" >> $env:GITHUB_ENV
+          # Verifica se o usuário já existe
+          if (Get-LocalUser -Name $username -ErrorAction SilentlyContinue) {
+              Write-Host "User $username already exists"
+          } else {
+              New-LocalUser -Name $username -Password $securePass -AccountNeverExpires
+              Write-Host "User $username created successfully"
+          }
           
-          if (-not (Get-LocalUser -Name "RDP")) {
+          Add-LocalGroupMember -Group "Administrators" -Member $username -ErrorAction SilentlyContinue
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member $username -ErrorAction SilentlyContinue
+          
+          echo "RDP_CREDS=User: $username | Password: $password" >> $env:GITHUB_ENV
+          
+          if (-not (Get-LocalUser -Name $username)) {
               Write-Error "User creation failed"
               exit 1
           }
-
       - name: Install Tailscale
         run: |
             $tsUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi"
