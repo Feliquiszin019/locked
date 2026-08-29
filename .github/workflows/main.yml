@@ -30,27 +30,34 @@ jobs:
           Restart-Service -Name TermService -Force
 
       - name: Create RDP User with Secure Password
+        shell: powershell
         run: |
           $username = "${{ secrets.RDP_USERNAME }}"
           $password = "${{ secrets.RDP_PASSWORD }}"
-          $securePass = ConvertTo-SecureString $password -AsPlainText -Force
-          
-          # Verifica se o usuário já existe
-          if (Get-LocalUser -Name $username -ErrorAction SilentlyContinue) {
-              Write-Host "User $username already exists"
-          } else {
-              New-LocalUser -Name $username -Password $securePass -AccountNeverExpires
-              Write-Host "User $username created successfully"
+
+          # Remove caracteres especiais perigosos e força complexidade
+          $password = $password -replace '[^a-zA-Z0-9!@#$%^&*]', ''
+          if ($password.Length -lt 7) {
+            $password = $password + "Pass123!"
           }
-          
+
+          $securePass = ConvertTo-SecureString $password -AsPlainText -Force
+
+          if (Get-LocalUser -Name $username -ErrorAction SilentlyContinue) {
+            Write-Host "User $username already exists"
+          } else {
+            New-LocalUser -Name $username -Password $securePass -AccountNeverExpires
+            Write-Host "User $username created successfully"
+          }
+
           Add-LocalGroupMember -Group "Administrators" -Member $username -ErrorAction SilentlyContinue
           Add-LocalGroupMember -Group "Remote Desktop Users" -Member $username -ErrorAction SilentlyContinue
-          
+
           echo "RDP_CREDS=User: $username | Password: $password" >> $env:GITHUB_ENV
-          
+
           if (-not (Get-LocalUser -Name $username)) {
-              Write-Error "User creation failed"
-              exit 1
+            Write-Error "User creation failed"
+            exit 1
           }
       - name: Install Tailscale
         run: |
