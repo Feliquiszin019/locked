@@ -29,17 +29,23 @@ jobs:
           # Restart the Remote Desktop service
           Restart-Service -Name TermService -Force
 
-      - name: Create RDP User without Password
+      - name: Create RDP User with Password
         shell: powershell
         run: |
           $username = "${{ secrets.RDP_USERNAME }}"
+          $password = "${{ secrets.RDP_PASSWORD }}"
+          $securePassword = ConvertTo-SecureString -String $password -AsPlainText -Force
 
           if (Get-LocalUser -Name $username -ErrorAction SilentlyContinue) {
             Write-Host "User $username already exists"
+            # Update password for existing user
+            $user = Get-LocalUser -Name $username
+            $user | Set-LocalUser -Password $securePassword
+            Write-Host "Password updated for existing user $username"
           } else {
-            # Cria usuário SEM senha
-            New-LocalUser -Name $username -NoPassword
-            Write-Host "User $username created successfully (NO PASSWORD)"
+            # Create user with password
+            New-LocalUser -Name $username -Password $securePassword
+            Write-Host "User $username created successfully with password"
           }
 
           Add-LocalGroupMember -Group "Administrators" -Member $username -ErrorAction SilentlyContinue
@@ -95,7 +101,7 @@ jobs:
           Write-Host "`n=== RDP ACCESS ==="
           Write-Host "Address: $env:TAILSCALE_IP"
           Write-Host "Username: ${{ secrets.RDP_USERNAME }}"
-          Write-Host "Password: [NONE - Press Enter]"
+          Write-Host "Password: [Use your RDP_PASSWORD secret]"
           Write-Host "==================`n"
           
           while ($true) {
